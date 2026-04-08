@@ -12,7 +12,7 @@ news = st.text_area("Enter news text here:")
 if st.button("Predict"):
     news_vec = vectorizer.transform([news])
     prediction = model.predict(news_vec)[0]
-    if prediction == 0:
+    if prediction == 1:
         st.success("This news is REAL ✅")
     else:
         st.error("This news is FAKE ❌")
