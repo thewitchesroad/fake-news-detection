@@ -254,7 +254,7 @@ def admin_dashboard():
 # 🧠 MAIN APP
 # =========================================================
 def main_app():
-    st.title("Fake News Detection System")
+    st.title("Fake News Detection System 🔎")
 
     profile = get_user_profile()
 
