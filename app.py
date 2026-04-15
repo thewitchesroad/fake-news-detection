@@ -110,14 +110,19 @@ def register():
 # =========================================================
 def logout():
     if st.sidebar.button("Logout"):
+
+        # 1. Logout from Supabase
         supabase.auth.sign_out()
 
+        # 2. DELETE COOKIE (MOST IMPORTANT)
         if "access_token" in cookies:
             del cookies["access_token"]
             cookies.save()
 
+        # 3. CLEAR SESSION STATE
         st.session_state.user = None
         st.session_state.logged_in = False
+
         st.rerun()
 
 
