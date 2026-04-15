@@ -30,19 +30,27 @@ vectorizer = pickle.load(open("vectorizer.pkl", "rb"))
 def restore_session():
     token = cookies.get("access_token")
 
-    if token:
-        try:
-            user = supabase.auth.get_user(token)
+    if not token:
+        st.session_state.user = None
+        st.session_state.logged_in = False
+        return
 
-            if user and user.user:
-                st.session_state.user = user.user
-                st.session_state.logged_in = True
-                return
-        except:
-            pass
+    try:
+        user = supabase.auth.get_user(token)
 
-    st.session_state.user = None
-    st.session_state.logged_in = False
+        if user and user.user:
+            st.session_state.user = user.user
+            st.session_state.logged_in = True
+        else:
+            raise Exception()
+
+    except:
+        # 🔥 FORCE CLEAR IF INVALID
+        cookies.pop("access_token", None)
+        cookies.save()
+
+        st.session_state.user = None
+        st.session_state.logged_in = False
 
 
 # =========================================================
