@@ -3,3 +3,4 @@ scikit-learn
 pandas
 numpy
 supabase
+streamlit-cookies-manager
