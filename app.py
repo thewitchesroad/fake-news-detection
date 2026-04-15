@@ -269,8 +269,6 @@ def main_app():
 
     choice = st.sidebar.selectbox("Menu", menu)
 
-    st.write("DEBUG PROFILE:", profile)
-
     if choice == "Predict":
         predict_page()
     elif choice == "History":
