@@ -6,7 +6,7 @@ from supabase import create_client, Client
 
 # ---------------- SUPABASE ----------------
 SUPABASE_URL = "https://dpvzvywjxsmsjcmbbgif.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwdnp2eXdqeHNtc2pjbWJiZ2lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxOTQ0ODQsImV4cCI6MjA5MTc3MDQ4NH0.Av6pQ6t4vuJwQkAZ_SUSYATOaarIMYdF7o1BOc0jjgU"
+SUPABASE_KEY = "YOUR_ANON_KEY"
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -14,18 +14,26 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 model = pickle.load(open("model.pkl", "rb"))
 vectorizer = pickle.load(open("vectorizer.pkl", "rb"))
 
-# ---------------- SESSION PERSISTENCE (IMPORTANT FIX) ----------------
-session = supabase.auth.get_user()
 
-if "user" not in st.session_state:
-    st.session_state.user = session.user if session else None
+# =========================================================
+# 🔐 SESSION RESTORE (FIX FOR REFRESH LOGOUT)
+# =========================================================
+def restore_session():
+    session = supabase.auth.get_session()
 
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = session.user is not None if session else False
+    if session and session.user:
+        st.session_state.user = session.user
+        st.session_state.logged_in = True
+    else:
+        st.session_state.user = None
+        st.session_state.logged_in = False
+
+
+restore_session()
 
 
 # =========================================================
-# 🔐 AUTH: LOGIN (SUPABASE AUTH)
+# 🔐 LOGIN (SUPABASE AUTH)
 # =========================================================
 def login():
     st.title("Login")
@@ -53,7 +61,7 @@ def login():
 
 
 # =========================================================
-# 📝 REGISTER (SUPABASE AUTH)
+# 📝 REGISTER
 # =========================================================
 def register():
     st.title("Register")
@@ -78,7 +86,7 @@ def register():
 
 
 # =========================================================
-# 🚪 LOGOUT (FIXED PROPERLY)
+# 🚪 LOGOUT (FIXED)
 # =========================================================
 def logout():
     if st.sidebar.button("Logout"):
@@ -89,7 +97,7 @@ def logout():
 
 
 # =========================================================
-# 🧠 PREDICT PAGE (UNCHANGED LOGIC, FIXED USER ID SOURCE)
+# 🧠 PREDICT PAGE
 # =========================================================
 def predict_page():
     st.subheader("Fake News Detection")
@@ -132,7 +140,7 @@ def predict_page():
 
 
 # =========================================================
-# 📜 HISTORY PAGE (FILTER BY AUTH USER)
+# 📜 HISTORY
 # =========================================================
 def history_page():
     st.subheader("Prediction History")
@@ -143,10 +151,9 @@ def history_page():
         .select("prediction, confidence_score, date_predicted, news_input(news_text, user_id)") \
         .execute()
 
-    data = response.data
     filtered = []
 
-    for row in data:
+    for row in response.data:
         if row.get("news_input") and row["news_input"]["user_id"] == user_id:
             filtered.append([
                 row["news_input"]["news_text"],
@@ -160,21 +167,6 @@ def history_page():
         st.dataframe(df)
     else:
         st.info("No history yet.")
-
-
-# =========================================================
-# 🧑‍💼 ADMIN DASHBOARD (UNCHANGED LOGIC)
-# =========================================================
-def admin_dashboard():
-    st.subheader("Admin Dashboard")
-
-    users = supabase.table("users").select("username,email,role").execute().data
-    st.write("### Users")
-    st.dataframe(pd.DataFrame(users))
-
-    models = supabase.table("models").select("model_name,algorithm,accuracy").execute().data
-    st.write("### Models")
-    st.dataframe(pd.DataFrame(models))
 
 
 # =========================================================
@@ -199,15 +191,6 @@ def main_app():
 
     menu = ["Predict", "History", "Upload Dataset"]
 
-    if st.session_state.user and hasattr(st.session_state.user, "email"):
-        pass
-
-    # Optional role check (kept safe)
-    if supabase.table("users").select("*").eq("email", st.session_state.user.email).execute().data:
-        user_data = supabase.table("users").select("*").eq("email", st.session_state.user.email).execute().data[0]
-        if user_data.get("role") == "admin":
-            menu.append("Admin Dashboard")
-
     choice = st.sidebar.selectbox("Menu", menu)
 
     if choice == "Predict":
@@ -216,16 +199,16 @@ def main_app():
         history_page()
     elif choice == "Upload Dataset":
         upload_dataset()
-    elif choice == "Admin Dashboard":
-        admin_dashboard()
 
     logout()
 
 
 # =========================================================
-# 🔀 ROUTER (FIXED PERSISTENT LOGIN)
+# 🔀 ROUTER (FIXED LOGIN PERSISTENCE)
 # =========================================================
 def app_router():
+    restore_session()
+
     if st.session_state.logged_in:
         main_app()
     else:
@@ -237,5 +220,5 @@ def app_router():
             register()
 
 
-# ---------------- RUN ----------------
+# ---------------- RUN APP ----------------
 app_router()
