@@ -3,6 +3,7 @@ import pickle
 from datetime import datetime
 import pandas as pd
 from supabase import create_client, Client
+from streamlit_cookies_manager import EncryptedCookieManager
 
 # ---------------- SUPABASE ----------------
 SUPABASE_URL = "https://dpvzvywjxsmsjcmbbgif.supabase.co"
@@ -10,26 +11,33 @@ SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# ---------------- COOKIE MANAGER ----------------
+cookies = EncryptedCookieManager(
+    prefix="my_app",
+    password="super_secret_password"
+)
+
+if not cookies.ready():
+    st.stop()
+
 # ---------------- LOAD MODEL ----------------
 model = pickle.load(open("model.pkl", "rb"))
 vectorizer = pickle.load(open("vectorizer.pkl", "rb"))
 
-
 # =========================================================
-# 🔐 SESSION RESTORE (FIX FOR REFRESH LOGOUT)
+# 🔐 RESTORE SESSION FROM COOKIE
 # =========================================================
 def restore_session():
-    access_token = st.session_state.get("access_token")
+    token = cookies.get("access_token")
 
-    if access_token:
+    if token:
         try:
-            user = supabase.auth.get_user(access_token)
+            user = supabase.auth.get_user(token)
 
             if user and user.user:
                 st.session_state.user = user.user
                 st.session_state.logged_in = True
                 return
-
         except:
             pass
 
@@ -38,7 +46,7 @@ def restore_session():
 
 
 # =========================================================
-# 🔐 LOGIN (SUPABASE AUTH)
+# 🔐 LOGIN
 # =========================================================
 def login():
     st.title("Login")
@@ -54,15 +62,14 @@ def login():
             })
 
             if response.session:
-                # 🔥 SAVE SESSION MANUALLY
-                st.session_state["access_token"] = response.session.access_token
-                st.session_state["user"] = response.user
-                st.session_state["logged_in"] = True
+                # 🔥 SAVE TOKEN TO COOKIE
+                cookies["access_token"] = response.session.access_token
+                cookies.save()
 
-                st.success("Login Successful")
+                st.success("Login successful")
                 st.rerun()
             else:
-                st.error("Invalid credentials")
+                st.error("Invalid login")
 
         except Exception as e:
             st.error(f"Login error: {e}")
@@ -85,23 +92,24 @@ def register():
             })
 
             if response.user:
-                st.success("Account created! Check email for verification.")
+                st.success("Account created! Check your email.")
             else:
                 st.error("Registration failed")
 
         except Exception as e:
-            st.error(f"Error: {str(e)}")
+            st.error(f"Error: {e}")
 
 
 # =========================================================
-# 🚪 LOGOUT (FIXED)
+# 🚪 LOGOUT
 # =========================================================
 def logout():
     if st.sidebar.button("Logout"):
         supabase.auth.sign_out()
 
-        if "access_token" in st.session_state:
-            del st.session_state["access_token"]
+        if "access_token" in cookies:
+            del cookies["access_token"]
+            cookies.save()
 
         st.session_state.user = None
         st.session_state.logged_in = False
@@ -109,7 +117,7 @@ def logout():
 
 
 # =========================================================
-# 🧠 PREDICT PAGE
+# 🧠 PREDICT
 # =========================================================
 def predict_page():
     st.subheader("Fake News Detection")
@@ -126,7 +134,7 @@ def predict_page():
 
             result = "REAL" if pred == 1 else "FAKE"
 
-            user_id = st.session_state.user.id
+            user_id = st.session_state.user.id  # UUID
 
             # Save news
             news_response = supabase.table("news_input").insert({
@@ -182,7 +190,7 @@ def history_page():
 
 
 # =========================================================
-# 📤 UPLOAD DATASET
+# 📤 UPLOAD
 # =========================================================
 def upload_dataset():
     st.subheader("Upload Dataset")
@@ -202,7 +210,6 @@ def main_app():
     st.title("Fake News Detection System")
 
     menu = ["Predict", "History", "Upload Dataset"]
-
     choice = st.sidebar.selectbox("Menu", menu)
 
     if choice == "Predict":
@@ -216,12 +223,12 @@ def main_app():
 
 
 # =========================================================
-# 🔀 ROUTER (FIXED LOGIN PERSISTENCE)
+# 🔀 ROUTER
 # =========================================================
 def app_router():
     restore_session()
 
-    if st.session_state.logged_in:
+    if st.session_state.get("logged_in"):
         main_app()
     else:
         menu = st.sidebar.selectbox("Menu", ["Login", "Register"])
@@ -232,5 +239,5 @@ def app_router():
             register()
 
 
-# ---------------- RUN APP ----------------
+# ---------------- RUN ----------------
 app_router()
