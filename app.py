@@ -19,17 +19,22 @@ vectorizer = pickle.load(open("vectorizer.pkl", "rb"))
 # 🔐 SESSION RESTORE (FIX FOR REFRESH LOGOUT)
 # =========================================================
 def restore_session():
-    session = supabase.auth.get_session()
+    access_token = st.session_state.get("access_token")
 
-    if session and session.user:
-        st.session_state.user = session.user
-        st.session_state.logged_in = True
-    else:
-        st.session_state.user = None
-        st.session_state.logged_in = False
+    if access_token:
+        try:
+            user = supabase.auth.get_user(access_token)
 
+            if user and user.user:
+                st.session_state.user = user.user
+                st.session_state.logged_in = True
+                return
 
-restore_session()
+        except:
+            pass
+
+    st.session_state.user = None
+    st.session_state.logged_in = False
 
 
 # =========================================================
@@ -48,16 +53,19 @@ def login():
                 "password": password
             })
 
-            if response.user:
-                st.session_state.user = response.user
-                st.session_state.logged_in = True
+            if response.session:
+                # 🔥 SAVE SESSION MANUALLY
+                st.session_state["access_token"] = response.session.access_token
+                st.session_state["user"] = response.user
+                st.session_state["logged_in"] = True
+
                 st.success("Login Successful")
                 st.rerun()
             else:
                 st.error("Invalid credentials")
 
         except Exception as e:
-            st.error(f"Login error: {str(e)}")
+            st.error(f"Login error: {e}")
 
 
 # =========================================================
@@ -91,6 +99,10 @@ def register():
 def logout():
     if st.sidebar.button("Logout"):
         supabase.auth.sign_out()
+
+        if "access_token" in st.session_state:
+            del st.session_state["access_token"]
+
         st.session_state.user = None
         st.session_state.logged_in = False
         st.rerun()
