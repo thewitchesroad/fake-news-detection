@@ -1,5 +1,5 @@
 import streamlit as st
-import sqlite3
+from supabase import create_client, Client
 import pickle
 from datetime import datetime
 
@@ -8,8 +8,10 @@ model = pickle.load(open("model.pkl", "rb"))
 vectorizer = pickle.load(open("vectorizer.pkl", "rb"))
 
 # DB connection
-conn = sqlite3.connect("database.db", check_same_thread=False)
-cursor = conn.cursor()
+SUPABASE_URL = "https://dpvzvywjxsmsjcmbbgif.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwdnp2eXdqeHNtc2pjbWJiZ2lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxOTQ0ODQsImV4cCI6MjA5MTc3MDQ4NH0.Av6pQ6t4vuJwQkAZ_SUSYATOaarIMYdF7o1BOc0jjgU"
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Session
 if "user" not in st.session_state:
@@ -23,11 +25,13 @@ def login():
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        cursor.execute(
-            "SELECT * FROM users WHERE username=? AND password=?",
-            (username, password)
-        )
-        user = cursor.fetchone()
+        response = supabase.table("users") \
+            .select("*") \
+            .eq("username", username) \
+            .eq("password", password) \
+            .execute()
+        
+        user = response.data[0] if response.data else None
 
         if user:
             st.session_state.user = user
@@ -45,9 +49,12 @@ def register():
     password = st.text_input("Password", type="password")
 
     if st.button("Register"):
-        cursor.execute("INSERT INTO users (username,email,password,role) VALUES (?,?,?,?)",
-                       (username, email, password, "user"))
-        conn.commit()
+        supabase.table("users").insert({
+            "username": username,
+            "email": email,
+            "password": password,
+            "role": "user"
+        }).execute()
         st.success("Account created!")
 
 # ---------------- MAIN APP ----------------
@@ -66,18 +73,23 @@ def main_app():
             result = "REAL" if pred == 1 else "FAKE"
 
             # Save input
-            cursor.execute(
-                "INSERT INTO news_input (user_id, news_text, language, date_submitted) VALUES (?,?,?,?)",
-                (st.session_state.user[0], news, language, datetime.now())
-            )
-            news_id = cursor.lastrowid
+            news_response = supabase.table("news_input").insert({
+                "user_id": st.session_state.user["user_id"],
+                "news_text": news,
+                "language": language,
+                "date_submitted": datetime.now().isoformat()
+            }).execute()
+            
+            news_id = news_response.data[0]["news_id"]
 
             # Save result
-            cursor.execute(
-                "INSERT INTO prediction_results (news_id, prediction, confidence_score, model_used, date_predicted) VALUES (?,?,?,?,?)",
-                (news_id, result, prob, "Logistic Regression", datetime.now())
-            )
-            conn.commit()
+            supabase.table("prediction_results").insert({
+                "news_id": news_id,
+                "prediction": result,
+                "confidence_score": float(prob),
+                "model_used": "Logistic Regression",
+                "date_predicted": datetime.now().isoformat()
+            }).execute()
 
             st.success(f"Result: {result}")
             st.info(f"Confidence: {prob:.2f}")
