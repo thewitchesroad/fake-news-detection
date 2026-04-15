@@ -107,6 +107,12 @@ def register():
     password = st.text_input("Password", type="password")
 
     if st.button("Register"):
+
+        # 🔥 PASSWORD CHECK (IMPORTANT)
+        if len(password) < 6:
+            st.error("Password must be at least 6 characters long.")
+            return
+
         response = supabase.auth.sign_up({
             "email": email,
             "password": password
