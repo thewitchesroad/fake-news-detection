@@ -7,7 +7,7 @@ from streamlit_cookies_manager import EncryptedCookieManager
 
 # ---------------- SUPABASE ----------------
 SUPABASE_URL = "https://dpvzvywjxsmsjcmbbgif.supabase.co"
-SUPABASE_KEY = "YOUR_ANON_KEY"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwdnp2eXdqeHNtc2pjbWJiZ2lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxOTQ0ODQsImV4cCI6MjA5MTc3MDQ4NH0.Av6pQ6t4vuJwQkAZ_SUSYATOaarIMYdF7o1BOc0jjgU"
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
