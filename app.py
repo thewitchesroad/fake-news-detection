@@ -11,7 +11,7 @@ SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# ---------------- SESSION STATE INIT ----------------
+# ---------------- SESSION STATE ----------------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
@@ -53,6 +53,22 @@ def restore_session():
 
 
 # =========================================================
+# 👤 GET USER PROFILE (ROLE CHECK)
+# =========================================================
+def get_user_profile():
+    user_id = st.session_state.user.id
+
+    response = supabase.table("users") \
+        .select("*") \
+        .eq("user_id", user_id) \
+        .execute()
+
+    if response.data:
+        return response.data[0]
+    return None
+
+
+# =========================================================
 # 🔐 LOGIN
 # =========================================================
 def login():
@@ -81,7 +97,7 @@ def login():
 
 
 # =========================================================
-# 📝 REGISTER (SAVE TO USERS TABLE TOO)
+# 📝 REGISTER
 # =========================================================
 def register():
     st.title("Register")
@@ -99,7 +115,6 @@ def register():
         if response.user:
             user_id = response.user.id
 
-            # SAVE TO YOUR USERS TABLE
             supabase.table("users").insert({
                 "user_id": user_id,
                 "username": username,
@@ -138,35 +153,33 @@ def predict_page():
     language = st.selectbox("Language", ["English", "Bisaya"])
 
     if st.button("Predict"):
-        if news:
+        vec = vectorizer.transform([news])
+        pred = model.predict(vec)[0]
+        prob = model.predict_proba(vec)[0].max()
 
-            vec = vectorizer.transform([news])
-            pred = model.predict(vec)[0]
-            prob = model.predict_proba(vec)[0].max()
+        result = "REAL" if pred == 1 else "FAKE"
 
-            result = "REAL" if pred == 1 else "FAKE"
+        user_id = st.session_state.user.id
 
-            user_id = st.session_state.user.id
+        news_response = supabase.table("news_input").insert({
+            "user_id": user_id,
+            "news_text": news,
+            "language": language,
+            "date_submitted": datetime.now().isoformat()
+        }).execute()
 
-            news_response = supabase.table("news_input").insert({
-                "user_id": user_id,
-                "news_text": news,
-                "language": language,
-                "date_submitted": datetime.now().isoformat()
-            }).execute()
+        news_id = news_response.data[0]["news_id"]
 
-            news_id = news_response.data[0]["news_id"]
+        supabase.table("prediction_results").insert({
+            "news_id": news_id,
+            "prediction": result,
+            "confidence_score": float(prob),
+            "model_used": "Logistic Regression",
+            "date_predicted": datetime.now().isoformat()
+        }).execute()
 
-            supabase.table("prediction_results").insert({
-                "news_id": news_id,
-                "prediction": result,
-                "confidence_score": float(prob),
-                "model_used": "Logistic Regression",
-                "date_predicted": datetime.now().isoformat()
-            }).execute()
-
-            st.success(f"Result: {result}")
-            st.info(f"Confidence: {prob:.2f}")
+        st.success(f"Result: {result}")
+        st.info(f"Confidence: {prob:.2f}")
 
 
 # =========================================================
@@ -200,7 +213,7 @@ def history_page():
 
 
 # =========================================================
-# 📤 UPLOAD
+# 📤 UPLOAD DATASET
 # =========================================================
 def upload_dataset():
     st.subheader("Upload Dataset")
@@ -214,12 +227,40 @@ def upload_dataset():
 
 
 # =========================================================
+# 🛡️ ADMIN DASHBOARD
+# =========================================================
+def admin_dashboard():
+    st.subheader("🛡️ Admin Dashboard")
+
+    st.write("### Users")
+    users = supabase.table("users").select("*").execute().data
+    st.dataframe(pd.DataFrame(users))
+
+    st.write("### News Inputs")
+    news = supabase.table("news_input").select("*").execute().data
+    st.dataframe(pd.DataFrame(news))
+
+    st.write("### Predictions")
+    preds = supabase.table("prediction_results").select("*").execute().data
+    st.dataframe(pd.DataFrame(preds))
+
+
+# =========================================================
 # 🧠 MAIN APP
 # =========================================================
 def main_app():
     st.title("Fake News Detection System")
 
+    profile = get_user_profile()
+
+    if profile:
+        st.write(f"Welcome, {profile['username']} 👋")
+
     menu = ["Predict", "History", "Upload Dataset"]
+
+    if profile and profile["role"] == "admin":
+        menu.append("Admin Dashboard")
+
     choice = st.sidebar.selectbox("Menu", menu)
 
     if choice == "Predict":
@@ -228,6 +269,8 @@ def main_app():
         history_page()
     elif choice == "Upload Dataset":
         upload_dataset()
+    elif choice == "Admin Dashboard":
+        admin_dashboard()
 
     logout()
 
