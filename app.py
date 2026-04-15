@@ -7,9 +7,16 @@ from streamlit_cookies_manager import EncryptedCookieManager
 
 # ---------------- SUPABASE ----------------
 SUPABASE_URL = "https://dpvzvywjxsmsjcmbbgif.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwdnp2eXdqeHNtc2pjbWJiZ2lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxOTQ0ODQsImV4cCI6MjA5MTc3MDQ4NH0.Av6pQ6t4vuJwQkAZ_SUSYATOaarIMYdF7o1BOc0jjgU"
+SUPABASE_KEY = "YOUR_ANON_KEY"
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# ---------------- SESSION STATE INIT ----------------
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+if "user" not in st.session_state:
+    st.session_state.user = None
 
 # ---------------- COOKIE MANAGER ----------------
 cookies = EncryptedCookieManager(
@@ -25,32 +32,24 @@ model = pickle.load(open("model.pkl", "rb"))
 vectorizer = pickle.load(open("vectorizer.pkl", "rb"))
 
 # =========================================================
-# 🔐 RESTORE SESSION FROM COOKIE
+# 🔁 RESTORE SESSION
 # =========================================================
 def restore_session():
     token = cookies.get("access_token")
 
-    if not token:
-        st.session_state.user = None
-        st.session_state.logged_in = False
-        return
+    if token:
+        try:
+            user = supabase.auth.get_user(token)
 
-    try:
-        user = supabase.auth.get_user(token)
+            if user and user.user:
+                st.session_state.user = user.user
+                st.session_state.logged_in = True
+                return
+        except:
+            pass
 
-        if user and user.user:
-            st.session_state.user = user.user
-            st.session_state.logged_in = True
-        else:
-            raise Exception()
-
-    except:
-        # 🔥 FORCE CLEAR IF INVALID
-        cookies.pop("access_token", None)
-        cookies.save()
-
-        st.session_state.user = None
-        st.session_state.logged_in = False
+    st.session_state.user = None
+    st.session_state.logged_in = False
 
 
 # =========================================================
@@ -63,28 +62,26 @@ def login():
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        try:
-            response = supabase.auth.sign_in_with_password({
-                "email": email,
-                "password": password
-            })
+        response = supabase.auth.sign_in_with_password({
+            "email": email,
+            "password": password
+        })
 
-            if response.session:
-                # 🔥 SAVE TOKEN TO COOKIE
-                cookies["access_token"] = response.session.access_token
-                cookies.save()
+        if response.session:
+            cookies["access_token"] = response.session.access_token
+            cookies.save()
 
-                st.success("Login successful")
-                st.rerun()
-            else:
-                st.error("Invalid login")
+            st.session_state.user = response.user
+            st.session_state.logged_in = True
 
-        except Exception as e:
-            st.error(f"Login error: {e}")
+            st.success("Login successful!")
+            st.rerun()
+        else:
+            st.error("Invalid login")
 
 
 # =========================================================
-# 📝 REGISTER
+# 📝 REGISTER (SAVE TO USERS TABLE TOO)
 # =========================================================
 def register():
     st.title("Register")
@@ -102,7 +99,7 @@ def register():
         if response.user:
             user_id = response.user.id
 
-            # 🔥 IMPORTANT: insert into users table
+            # SAVE TO YOUR USERS TABLE
             supabase.table("users").insert({
                 "user_id": user_id,
                 "username": username,
@@ -111,6 +108,8 @@ def register():
             }).execute()
 
             st.success("Account created!")
+        else:
+            st.error("Registration failed")
 
 
 # =========================================================
@@ -118,16 +117,11 @@ def register():
 # =========================================================
 def logout():
     if st.sidebar.button("Logout"):
-
-        # 1. Logout from Supabase
         supabase.auth.sign_out()
 
-        # 2. DELETE COOKIE (MOST IMPORTANT)
-        if "access_token" in cookies:
-            del cookies["access_token"]
-            cookies.save()
+        cookies["access_token"] = ""
+        cookies.save()
 
-        # 3. CLEAR SESSION STATE
         st.session_state.user = None
         st.session_state.logged_in = False
 
@@ -152,9 +146,8 @@ def predict_page():
 
             result = "REAL" if pred == 1 else "FAKE"
 
-            user_id = st.session_state.user.id  # UUID
+            user_id = st.session_state.user.id
 
-            # Save news
             news_response = supabase.table("news_input").insert({
                 "user_id": user_id,
                 "news_text": news,
@@ -164,7 +157,6 @@ def predict_page():
 
             news_id = news_response.data[0]["news_id"]
 
-            # Save prediction
             supabase.table("prediction_results").insert({
                 "news_id": news_id,
                 "prediction": result,
@@ -246,7 +238,7 @@ def main_app():
 def app_router():
     restore_session()
 
-    if st.session_state.get("logged_in"):
+    if st.session_state.logged_in:
         main_app()
     else:
         menu = st.sidebar.selectbox("Menu", ["Login", "Register"])
@@ -257,5 +249,5 @@ def app_router():
             register()
 
 
-# ---------------- RUN ----------------
+# ---------------- RUN APP ----------------
 app_router()
