@@ -6,67 +6,91 @@ from supabase import create_client, Client
 
 # ---------------- SUPABASE ----------------
 SUPABASE_URL = "https://dpvzvywjxsmsjcmbbgif.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwdnp2eXdqeHNtc2pjbWJiZ2lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxOTQ0ODQsImV4cCI6MjA5MTc3MDQ4NH0.Av6pQ6t4vuJwQkAZ_SUSYATOaarIMYdF7o1BOc0jjgU"
+SUPABASE_KEY = "YOUR_ANON_KEY"
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# ---------------- LOAD ML MODEL ----------------
+# ---------------- LOAD MODEL ----------------
 model = pickle.load(open("model.pkl", "rb"))
 vectorizer = pickle.load(open("vectorizer.pkl", "rb"))
 
-# ---------------- SESSION STATE INIT ----------------
+# ---------------- SESSION PERSISTENCE (IMPORTANT FIX) ----------------
+session = supabase.auth.get_user()
+
 if "user" not in st.session_state:
-    st.session_state.user = None
+    st.session_state.user = session.user if session else None
 
 if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
+    st.session_state.logged_in = session.user is not None if session else False
 
 
-# ---------------- LOGIN ----------------
+# =========================================================
+# 🔐 AUTH: LOGIN (SUPABASE AUTH)
+# =========================================================
 def login():
     st.title("Login")
 
-    username = st.text_input("Username")
+    email = st.text_input("Email")
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        response = supabase.table("users") \
-            .select("*") \
-            .eq("username", username) \
-            .eq("password", password) \
-            .execute()
+        try:
+            response = supabase.auth.sign_in_with_password({
+                "email": email,
+                "password": password
+            })
 
-        user = response.data[0] if response.data else None
+            if response.user:
+                st.session_state.user = response.user
+                st.session_state.logged_in = True
+                st.success("Login Successful")
+                st.rerun()
+            else:
+                st.error("Invalid credentials")
 
-        if user:
-            st.session_state.user = user
-            st.session_state.logged_in = True
-            st.success("Login Successful")
-            st.rerun()
-        else:
-            st.error("Invalid credentials")
+        except Exception as e:
+            st.error(f"Login error: {str(e)}")
 
 
-# ---------------- REGISTER ----------------
+# =========================================================
+# 📝 REGISTER (SUPABASE AUTH)
+# =========================================================
 def register():
     st.title("Register")
 
-    username = st.text_input("Username")
     email = st.text_input("Email")
     password = st.text_input("Password", type="password")
 
     if st.button("Register"):
-        supabase.table("users").insert({
-            "username": username,
-            "email": email,
-            "password": password,
-            "role": "user"
-        }).execute()
+        try:
+            response = supabase.auth.sign_up({
+                "email": email,
+                "password": password
+            })
 
-        st.success("Account created!")
+            if response.user:
+                st.success("Account created! Check email for verification.")
+            else:
+                st.error("Registration failed")
+
+        except Exception as e:
+            st.error(f"Error: {str(e)}")
 
 
-# ---------------- PREDICT ----------------
+# =========================================================
+# 🚪 LOGOUT (FIXED PROPERLY)
+# =========================================================
+def logout():
+    if st.sidebar.button("Logout"):
+        supabase.auth.sign_out()
+        st.session_state.user = None
+        st.session_state.logged_in = False
+        st.rerun()
+
+
+# =========================================================
+# 🧠 PREDICT PAGE (UNCHANGED LOGIC, FIXED USER ID SOURCE)
+# =========================================================
 def predict_page():
     st.subheader("Fake News Detection")
 
@@ -82,9 +106,11 @@ def predict_page():
 
             result = "REAL" if pred == 1 else "FAKE"
 
+            user_id = st.session_state.user.id
+
             # Save news
             news_response = supabase.table("news_input").insert({
-                "user_id": st.session_state.user["user_id"],
+                "user_id": user_id,
                 "news_text": news,
                 "language": language,
                 "date_submitted": datetime.now().isoformat()
@@ -105,20 +131,23 @@ def predict_page():
             st.info(f"Confidence: {prob:.2f}")
 
 
-# ---------------- HISTORY ----------------
+# =========================================================
+# 📜 HISTORY PAGE (FILTER BY AUTH USER)
+# =========================================================
 def history_page():
     st.subheader("Prediction History")
+
+    user_id = st.session_state.user.id
 
     response = supabase.table("prediction_results") \
         .select("prediction, confidence_score, date_predicted, news_input(news_text, user_id)") \
         .execute()
 
     data = response.data
-
     filtered = []
 
     for row in data:
-        if row.get("news_input") and row["news_input"]["user_id"] == st.session_state.user["user_id"]:
+        if row.get("news_input") and row["news_input"]["user_id"] == user_id:
             filtered.append([
                 row["news_input"]["news_text"],
                 row["prediction"],
@@ -133,7 +162,9 @@ def history_page():
         st.info("No history yet.")
 
 
-# ---------------- ADMIN ----------------
+# =========================================================
+# 🧑‍💼 ADMIN DASHBOARD (UNCHANGED LOGIC)
+# =========================================================
 def admin_dashboard():
     st.subheader("Admin Dashboard")
 
@@ -146,7 +177,9 @@ def admin_dashboard():
     st.dataframe(pd.DataFrame(models))
 
 
-# ---------------- UPLOAD ----------------
+# =========================================================
+# 📤 UPLOAD DATASET
+# =========================================================
 def upload_dataset():
     st.subheader("Upload Dataset")
 
@@ -158,14 +191,22 @@ def upload_dataset():
         st.success("Dataset uploaded successfully!")
 
 
-# ---------------- MAIN APP ----------------
+# =========================================================
+# 🧠 MAIN APP
+# =========================================================
 def main_app():
     st.title("Fake News Detection System")
 
     menu = ["Predict", "History", "Upload Dataset"]
 
-    if st.session_state.user["role"] == "admin":
-        menu.append("Admin Dashboard")
+    if st.session_state.user and hasattr(st.session_state.user, "email"):
+        pass
+
+    # Optional role check (kept safe)
+    if supabase.table("users").select("*").eq("email", st.session_state.user.email).execute().data:
+        user_data = supabase.table("users").select("*").eq("email", st.session_state.user.email).execute().data[0]
+        if user_data.get("role") == "admin":
+            menu.append("Admin Dashboard")
 
     choice = st.sidebar.selectbox("Menu", menu)
 
@@ -178,20 +219,23 @@ def main_app():
     elif choice == "Admin Dashboard":
         admin_dashboard()
 
-    # ---------------- LOGOUT FIX ----------------
-    if st.sidebar.button("Logout"):
-        st.session_state.logged_in = False
-        st.session_state.user = None
-        st.rerun()
+    logout()
 
 
-# ---------------- ROUTER (FIXED) ----------------
-if st.session_state.logged_in:
-    main_app()
-else:
-    menu = st.sidebar.selectbox("Menu", ["Login", "Register"])
-
-    if menu == "Login":
-        login()
+# =========================================================
+# 🔀 ROUTER (FIXED PERSISTENT LOGIN)
+# =========================================================
+def app_router():
+    if st.session_state.logged_in:
+        main_app()
     else:
-        register()
+        menu = st.sidebar.selectbox("Menu", ["Login", "Register"])
+
+        if menu == "Login":
+            login()
+        else:
+            register()
+
+
+# ---------------- RUN ----------------
+app_router()
