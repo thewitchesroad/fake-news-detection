@@ -62,7 +62,6 @@ def login():
             })
 
             if response.session:
-                # 🔥 SAVE TOKEN TO COOKIE
                 cookies["access_token"] = response.session.access_token
                 cookies.save()
 
@@ -76,23 +75,36 @@ def login():
 
 
 # =========================================================
-# 📝 REGISTER
+# 📝 REGISTER (AUTH + USERS TABLE)
 # =========================================================
 def register():
     st.title("Register")
 
+    username = st.text_input("Username")
     email = st.text_input("Email")
     password = st.text_input("Password", type="password")
 
     if st.button("Register"):
         try:
+            # Step 1: Create auth user
             response = supabase.auth.sign_up({
                 "email": email,
                 "password": password
             })
 
             if response.user:
-                st.success("Account created! Check your email.")
+                user_id = response.user.id
+
+                # Step 2: Insert into users table
+                supabase.table("users").insert({
+                    "user_id": user_id,
+                    "username": username,
+                    "email": email,
+                    "role": "user"
+                }).execute()
+
+                st.success("Account created successfully!")
+
             else:
                 st.error("Registration failed")
 
@@ -117,6 +129,22 @@ def logout():
 
 
 # =========================================================
+# 👤 GET USER PROFILE
+# =========================================================
+def get_user_profile():
+    user_id = st.session_state.user.id
+
+    response = supabase.table("users") \
+        .select("*") \
+        .eq("user_id", user_id) \
+        .execute()
+
+    if response.data:
+        return response.data[0]
+    return None
+
+
+# =========================================================
 # 🧠 PREDICT
 # =========================================================
 def predict_page():
@@ -134,9 +162,8 @@ def predict_page():
 
             result = "REAL" if pred == 1 else "FAKE"
 
-            user_id = st.session_state.user.id  # UUID
+            user_id = st.session_state.user.id
 
-            # Save news
             news_response = supabase.table("news_input").insert({
                 "user_id": user_id,
                 "news_text": news,
@@ -146,7 +173,6 @@ def predict_page():
 
             news_id = news_response.data[0]["news_id"]
 
-            # Save prediction
             supabase.table("prediction_results").insert({
                 "news_id": news_id,
                 "prediction": result,
@@ -207,9 +233,19 @@ def upload_dataset():
 # 🧠 MAIN APP
 # =========================================================
 def main_app():
+    profile = get_user_profile()
+
     st.title("Fake News Detection System")
 
+    if profile:
+        st.write(f"Welcome, {profile['username']} 👋")
+
     menu = ["Predict", "History", "Upload Dataset"]
+
+    # Admin check
+    if profile and profile.get("role") == "admin":
+        menu.append("Admin Dashboard")
+
     choice = st.sidebar.selectbox("Menu", menu)
 
     if choice == "Predict":
@@ -218,6 +254,10 @@ def main_app():
         history_page()
     elif choice == "Upload Dataset":
         upload_dataset()
+    elif choice == "Admin Dashboard":
+        st.subheader("Admin Dashboard")
+        users = supabase.table("users").select("*").execute().data
+        st.dataframe(pd.DataFrame(users))
 
     logout()
 
