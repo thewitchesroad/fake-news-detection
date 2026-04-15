@@ -81,23 +81,28 @@ def login():
 def register():
     st.title("Register")
 
+    username = st.text_input("Username")
     email = st.text_input("Email")
     password = st.text_input("Password", type="password")
 
     if st.button("Register"):
-        try:
-            response = supabase.auth.sign_up({
+        response = supabase.auth.sign_up({
+            "email": email,
+            "password": password
+        })
+
+        if response.user:
+            user_id = response.user.id
+
+            # 🔥 IMPORTANT: insert into users table
+            supabase.table("users").insert({
+                "user_id": user_id,
+                "username": username,
                 "email": email,
-                "password": password
-            })
+                "role": "user"
+            }).execute()
 
-            if response.user:
-                st.success("Account created! Check your email.")
-            else:
-                st.error("Registration failed")
-
-        except Exception as e:
-            st.error(f"Error: {e}")
+            st.success("Account created!")
 
 
 # =========================================================
