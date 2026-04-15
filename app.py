@@ -4,7 +4,7 @@ from datetime import datetime
 import pandas as pd
 from supabase import create_client, Client
 
-# ---------------- SUPABASE SETUP ----------------
+# ---------------- SUPABASE ----------------
 SUPABASE_URL = "https://dpvzvywjxsmsjcmbbgif.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwdnp2eXdqeHNtc2pjbWJiZ2lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxOTQ0ODQsImV4cCI6MjA5MTc3MDQ4NH0.Av6pQ6t4vuJwQkAZ_SUSYATOaarIMYdF7o1BOc0jjgU"
 
@@ -14,9 +14,12 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 model = pickle.load(open("model.pkl", "rb"))
 vectorizer = pickle.load(open("vectorizer.pkl", "rb"))
 
-# ---------------- SESSION ----------------
+# ---------------- SESSION STATE INIT ----------------
 if "user" not in st.session_state:
     st.session_state.user = None
+
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
 
 
 # ---------------- LOGIN ----------------
@@ -37,6 +40,7 @@ def login():
 
         if user:
             st.session_state.user = user
+            st.session_state.logged_in = True
             st.success("Login Successful")
             st.rerun()
         else:
@@ -72,14 +76,13 @@ def predict_page():
     if st.button("Predict"):
         if news:
 
-            # ML prediction
             vec = vectorizer.transform([news])
             pred = model.predict(vec)[0]
             prob = model.predict_proba(vec)[0].max()
 
             result = "REAL" if pred == 1 else "FAKE"
 
-            # Save news input
+            # Save news
             news_response = supabase.table("news_input").insert({
                 "user_id": st.session_state.user["user_id"],
                 "news_text": news,
@@ -89,7 +92,7 @@ def predict_page():
 
             news_id = news_response.data[0]["news_id"]
 
-            # Save prediction result
+            # Save prediction
             supabase.table("prediction_results").insert({
                 "news_id": news_id,
                 "prediction": result,
@@ -143,7 +146,7 @@ def admin_dashboard():
     st.dataframe(pd.DataFrame(models))
 
 
-# ---------------- UPLOAD DATASET ----------------
+# ---------------- UPLOAD ----------------
 def upload_dataset():
     st.subheader("Upload Dataset")
 
@@ -175,19 +178,20 @@ def main_app():
     elif choice == "Admin Dashboard":
         admin_dashboard()
 
+    # ---------------- LOGOUT FIX ----------------
     if st.sidebar.button("Logout"):
+        st.session_state.logged_in = False
         st.session_state.user = None
         st.rerun()
 
 
-# ---------------- ROUTER ----------------
-if st.session_state.user is None:
-    menu = ["Login", "Register"]
-    choice = st.sidebar.selectbox("Menu", menu)
+# ---------------- ROUTER (FIXED) ----------------
+if st.session_state.logged_in:
+    main_app()
+else:
+    menu = st.sidebar.selectbox("Menu", ["Login", "Register"])
 
-    if choice == "Login":
+    if menu == "Login":
         login()
     else:
         register()
-else:
-    main_app()
