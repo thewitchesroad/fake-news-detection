@@ -23,12 +23,16 @@ def login():
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        cursor.execute("SELECT * FROM users WHERE username=? AND password=?", (username, password))
+        cursor.execute(
+            "SELECT * FROM users WHERE username=? AND password=?",
+            (username, password)
+        )
         user = cursor.fetchone()
 
         if user:
             st.session_state.user = user
             st.success("Login Successful")
+            st.rerun()  # 🔥 THIS IS THE FIX
         else:
             st.error("Invalid credentials")
 
@@ -83,7 +87,7 @@ def main_app():
         st.rerun()
 
     # LOGOUT
-    if st.button("Logout"):
+    if st.sidebar.button("Logout"):
         st.session_state.user = None
         st.rerun()
 
