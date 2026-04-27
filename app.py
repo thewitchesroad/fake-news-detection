@@ -5,16 +5,6 @@ import pandas as pd
 from supabase import create_client, Client
 from streamlit_cookies_manager import EncryptedCookieManager
 
-st.markdown("""
-    <style>
-        /* Hide share, star, github */
-        button[title="Share"],
-        button[title="Star"],
-        button[title="GitHub"] {
-            display: none !important;
-        }
-    </style>
-""", unsafe_allow_html=True)
 
 # ---------------- SUPABASE ----------------
 SUPABASE_URL = "https://dpvzvywjxsmsjcmbbgif.supabase.co"
