@@ -7,19 +7,11 @@ from streamlit_cookies_manager import EncryptedCookieManager
 
 st.markdown("""
     <style>
-        /* Hide ALL header buttons */
-        [data-testid="stHeader"] button {
+        /* Hide share, star, github */
+        button[title="Share"],
+        button[title="Star"],
+        button[title="GitHub"] {
             display: none !important;
-        }
-
-        /* Show ONLY the 3-dot menu (kebab menu) */
-        [data-testid="stToolbar"] button:last-child {
-            display: inline-flex !important;
-        }
-
-        /* Optional: clean spacing */
-        [data-testid="stHeader"] {
-            background: transparent;
         }
     </style>
 """, unsafe_allow_html=True)
