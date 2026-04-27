@@ -78,22 +78,42 @@ def login():
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        response = supabase.auth.sign_in_with_password({
-            "email": email,
-            "password": password
-        })
+        if not email or not password:
+            st.warning("Please enter email and password.")
+            return
 
-        if response.session:
-            cookies["access_token"] = response.session.access_token
-            cookies.save()
+        try:
+            with st.spinner("Logging in..."):
+                response = supabase.auth.sign_in_with_password({
+                    "email": email,
+                    "password": password
+                })
 
-            st.session_state.user = response.user
-            st.session_state.logged_in = True
+            # ✅ SUCCESS
+            if response.session:
+                cookies["access_token"] = response.session.access_token
+                cookies.save()
 
-            st.success("Login successful!")
-            st.rerun()
-        else:
-            st.error("Invalid login")
+                st.session_state.user = response.user
+                st.session_state.logged_in = True
+
+                st.success("Login successful!")
+                st.rerun()
+
+        except Exception as e:
+            error_msg = str(e).lower()
+
+            # 🔴 INVALID CREDENTIALS
+            if "invalid" in error_msg or "credentials" in error_msg:
+                st.error("Invalid email or password.")
+
+            # 🟡 SUPABASE DOWN / SLEEPING
+            elif "connect" in error_msg or "network" in error_msg:
+                st.error("Server is waking up. Please try again in a few seconds.")
+
+            # ⚠️ OTHER ERRORS
+            else:
+                st.error("Something went wrong. Please try again later.")
 
 
 # =========================================================
@@ -108,29 +128,32 @@ def register():
 
     if st.button("Register"):
 
-        # 🔥 PASSWORD CHECK (IMPORTANT)
         if len(password) < 6:
             st.error("Password must be at least 6 characters long.")
             return
 
-        response = supabase.auth.sign_up({
-            "email": email,
-            "password": password
-        })
-
-        if response.user:
-            user_id = response.user.id
-
-            supabase.table("users").insert({
-                "user_id": user_id,
-                "username": username,
+        try:
+            response = supabase.auth.sign_up({
                 "email": email,
-                "role": "user"
-            }).execute()
+                "password": password
+            })
 
-            st.success("Account created!")
-        else:
-            st.error("Registration failed")
+            if response.user:
+                user_id = response.user.id
+
+                supabase.table("users").insert({
+                    "user_id": user_id,
+                    "username": username,
+                    "email": email,
+                    "role": "user"
+                }).execute()
+
+                st.success("Account created!")
+            else:
+                st.error("Registration failed")
+
+        except Exception:
+            st.error("Registration failed. Try a different email.")
 
 
 # =========================================================
