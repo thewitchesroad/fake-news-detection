@@ -5,25 +5,6 @@ import pandas as pd
 from supabase import create_client, Client
 from streamlit_cookies_manager import EncryptedCookieManager
 
-st.markdown("""
-<style>
-/* Hide Share button */
-button[kind="headerNoPadding"] {
-    display: none !important;
-}
-
-/* Hide entire header toolbar except menu */
-[data-testid="stHeader"] div[data-testid="stToolbar"] > div:first-child {
-    display: none !important;
-}
-
-/* Keep ONLY the 3-dot menu */
-[data-testid="stHeader"] div[data-testid="stToolbar"] {
-    justify-content: flex-end;
-}
-</style>
-""", unsafe_allow_html=True)
-
 
 # ---------------- SUPABASE ----------------
 SUPABASE_URL = "https://dpvzvywjxsmsjcmbbgif.supabase.co"
