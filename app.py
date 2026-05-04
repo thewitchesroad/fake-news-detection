@@ -292,22 +292,6 @@ def upload_dataset():
                 X = df["news_text"]
                 y = df["label"]
 
-                # TF-IDF UPDATE
-                new_vectorizer = vectorizer.fit(X)
-                X_vec = new_vectorizer.transform(X)
-
-                # MODEL TRAINING
-                from sklearn.linear_model import LogisticRegression
-
-                new_model = LogisticRegression()
-                new_model.fit(X_vec, y)
-
-                # SAVE MODEL
-                with open("model.pkl", "wb") as f:
-                    pickle.dump(new_model, f)
-
-                with open("vectorizer.pkl", "wb") as f:
-                    pickle.dump(new_vectorizer, f)
 
                 st.success("Model updated successfully!")
 
