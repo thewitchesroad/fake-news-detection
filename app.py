@@ -245,15 +245,70 @@ def history_page():
 # 📤 UPLOAD DATASET
 # =========================================================
 def upload_dataset():
-    st.subheader("Upload Dataset")
+    st.subheader("📤 Admin Dataset Upload & Training")
 
-    file = st.file_uploader("Upload CSV", type=["csv"])
+    # ---------------- CHECK ADMIN ----------------
+    profile = get_user_profile()
+
+    if not profile or profile["role"] != "admin":
+        st.error("🚫 Access denied. Admin only.")
+        return
+
+    # ---------------- UPLOAD FILE ----------------
+    file = st.file_uploader("Upload CSV (news_text, label)", type=["csv"])
 
     if file:
         df = pd.read_csv(file)
-        st.dataframe(df.head())
-        st.success("Dataset uploaded successfully!")
 
+        # ---------------- CLEANING ----------------
+        df.columns = df.columns.str.strip()
+
+        if "news_text" not in df.columns or "label" not in df.columns:
+            st.error("CSV must contain 'news_text' and 'label'")
+            return
+
+        df = df.dropna()
+        df = df.drop_duplicates()
+
+        st.write("### Cleaned Dataset Preview")
+        st.dataframe(df.head())
+
+        # ---------------- SAVE TO SUPABASE ----------------
+        if st.button("Save Dataset to Supabase"):
+            for _, row in df.iterrows():
+                supabase.table("training_dataset").insert({
+                    "news_text": row["news_text"],
+                    "label": int(row["label"])
+                }).execute()
+
+            st.success("Dataset saved to Supabase!")
+
+        # ---------------- TRAIN MODEL ----------------
+        if st.button("Train Model"):
+
+            with st.spinner("Training model..."):
+
+                X = df["news_text"]
+                y = df["label"]
+
+                # TF-IDF UPDATE
+                new_vectorizer = vectorizer.fit(X)
+                X_vec = new_vectorizer.transform(X)
+
+                # MODEL TRAINING
+                from sklearn.linear_model import LogisticRegression
+
+                new_model = LogisticRegression()
+                new_model.fit(X_vec, y)
+
+                # SAVE MODEL
+                with open("model.pkl", "wb") as f:
+                    pickle.dump(new_model, f)
+
+                with open("vectorizer.pkl", "wb") as f:
+                    pickle.dump(new_vectorizer, f)
+
+                st.success("Model updated successfully!")
 
 # =========================================================
 # 🛡️ ADMIN DASHBOARD
