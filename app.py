@@ -209,6 +209,7 @@ def predict_page():
 
         st.success(f"Result: {result}")
         st.info(f"Confidence: {prob:.2f}")
+        st.write("Raw prediction:", pred)
 
 
 # =========================================================
