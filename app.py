@@ -215,8 +215,6 @@ def logout():
 # =========================================================
 def predict_page():
 
-    st.subheader("🧠 Fake News Prediction")
-
     news = st.text_area("Enter News Text")
     language = st.selectbox("Language", ["English", "Bisaya"])
 
