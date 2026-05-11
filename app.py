@@ -434,6 +434,7 @@ def main_app():
     profile = get_user_profile()
 
     if profile:
+        st.markdown(f"### 👋 Welcome, **{profile['username']}**!")
         st.sidebar.success(f"Logged in as: {profile['username']}")
 
     menu = [
