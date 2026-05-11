@@ -429,7 +429,7 @@ def admin_dashboard():
 # =========================================================
 def main_app():
 
-    st.title("🔎 Fake News Detection System")
+    st.title("🔎Localized Fake News Detection System in Barobo, Surigao Del sur")
 
     profile = get_user_profile()
 
