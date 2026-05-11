@@ -256,7 +256,7 @@ def predict_page():
             "news_id": news_id,
             "prediction": result,
             "confidence_score": float(prob),
-            "model_used": "Machine Learning",
+            "model_used": "Logistic Regression",
             "date_predicted": datetime.now().isoformat()
         }).execute()
 
