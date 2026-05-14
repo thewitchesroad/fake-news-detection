@@ -409,18 +409,6 @@ def admin_dashboard():
 
     st.dataframe(pd.DataFrame(preds), use_container_width=True)
 
-    # =====================================
-    # MODELS
-    # =====================================
-    st.write("## Models")
-
-    models = supabase.table("models") \
-        .select("*") \
-        .execute() \
-        .data
-
-    st.dataframe(pd.DataFrame(models), use_container_width=True)
-
 
 # =========================================================
 # MAIN APP
